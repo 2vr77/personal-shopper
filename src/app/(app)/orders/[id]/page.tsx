@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { addOrdersToCargo } from '@/app/actions/cargo'
 import { decidePayment } from '@/app/actions/payments'
+import { addOrdersToPurchaseBatch } from '@/app/actions/purchasing'
 import { Badge, StatusBadge } from '@/components/status-badge'
-import { Button, Card, DetailRow, EmptyState, PageHeader } from '@/components/ui'
+import { Button, Card, DetailRow, EmptyState, Field, PageHeader, Select } from '@/components/ui'
 import { hasRole, requireUser } from '@/lib/dal'
 import { formatMYR } from '@/lib/money'
 import {
@@ -11,7 +13,9 @@ import {
   allowedTransitions,
   progressRatio,
 } from '@/lib/order-status'
+import { listCargoBatches } from '@/lib/queries/cargo'
 import { estimateMargin, getOrder } from '@/lib/queries/orders'
+import { listPurchaseBatches } from '@/lib/queries/purchasing'
 import { cn, formatDateTime, humanize } from '@/lib/utils'
 
 import { PaymentForm } from './payment-form'
@@ -39,6 +43,16 @@ export default async function OrderDetailPage(props: PageProps<'/orders/[id]'>) 
   const margin = estimateMargin(order)
   const transitions = allowedTransitions(order.status)
   const progress = Math.round(progressRatio(order.status) * 100)
+
+  const canAssignTrip = canEdit && order.status === 'PAYMENT_VERIFIED' && !order.purchaseBatch
+  const canAssignCargo = canEdit && order.status === 'PURCHASED' && !order.cargoBatch
+
+  const openPurchaseBatches = canAssignTrip
+    ? (await listPurchaseBatches()).filter((b) => !b.closedAt)
+    : []
+  const openCargoBatches = canAssignCargo
+    ? (await listCargoBatches()).filter((b) => b.status !== 'ARRIVED' && b.status !== 'CLOSED')
+    : []
 
   return (
     <div className="flex flex-col gap-6">
@@ -215,6 +229,56 @@ export default async function OrderDetailPage(props: PageProps<'/orders/[id]'>) 
               )}
             </div>
           </Card>
+
+          {(canAssignTrip || canAssignCargo) && (
+            <Card className="p-4">
+              <h2 className="mb-2 font-medium">Assign to trip / cargo</h2>
+              {canAssignTrip && (
+                openPurchaseBatches.length > 0 ? (
+                  <form action={addOrdersToPurchaseBatch} className="flex flex-col gap-3">
+                    <input type="hidden" name="orderIds" value={order.id} />
+                    <Field label="Purchase trip" htmlFor="batchId">
+                      <Select id="batchId" name="batchId" defaultValue="" required>
+                        <option value="" disabled>
+                          Choose a trip…
+                        </option>
+                        {openPurchaseBatches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Button type="submit">Assign to trip</Button>
+                  </form>
+                ) : (
+                  <EmptyState title="No open purchase trips" description="Create a purchase trip first." />
+                )
+              )}
+              {canAssignCargo && (
+                openCargoBatches.length > 0 ? (
+                  <form action={addOrdersToCargo} className="flex flex-col gap-3">
+                    <input type="hidden" name="orderIds" value={order.id} />
+                    <Field label="Cargo shipment" htmlFor="cargoBatchId">
+                      <Select id="cargoBatchId" name="cargoBatchId" defaultValue="" required>
+                        <option value="" disabled>
+                          Choose a shipment…
+                        </option>
+                        {openCargoBatches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Button type="submit">Assign to cargo</Button>
+                  </form>
+                ) : (
+                  <EmptyState title="No open cargo shipments" description="Create a cargo shipment first." />
+                )
+              )}
+            </Card>
+          )}
 
           {(order.purchaseBatch || order.cargoBatch) && (
             <Card className="p-4">
