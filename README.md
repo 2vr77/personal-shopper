@@ -31,16 +31,53 @@ password `password123`:
 
 Generate a real session secret with `openssl rand -base64 32`.
 
+## Deployment
+
+### Railway (Recommended)
+
+1. Push your code to GitHub
+2. Go to [railway.app](https://railway.app) and create a new project
+3. Add PostgreSQL database service
+4. Add your Next.js app from GitHub
+5. Configure environment variables:
+   - `DATABASE_URL` - provided by Railway PostgreSQL
+   - `SESSION_SECRET` - generate with `openssl rand -base64 32`
+   - `NEXT_PUBLIC_APP_URL` - your Railway app URL
+6. Deploy - Railway will run migrations and start the app
+
+### Manual VPS/Cloud Server
+
+```bash
+# 1. Build the app
+npm run build
+
+# 2. Set production environment variables (see .env.production)
+export DATABASE_URL="postgresql://..."
+export SESSION_SECRET="..."
+export NEXT_PUBLIC_APP_URL="https://your-domain.com"
+
+# 3. Run migrations
+npm run db:deploy
+
+# 4. Seed database (first time only)
+npm run db:seed
+
+# 5. Start production server
+npm run start
+```
+
 ## Scripts
 
 | Command              | Purpose                                     |
 | -------------------- | ------------------------------------------- |
 | `npm run dev`        | Dev server (Turbopack)                      |
 | `npm run build`      | Production build                            |
+| `npm run start`      | Production server                           |
 | `npm run typecheck`  | `tsc --noEmit`                              |
 | `npm run lint`       | ESLint                                      |
 | `npm run db:up/down` | Start / stop the Postgres container         |
 | `npm run db:migrate` | Create and apply a migration after a schema edit |
+| `npm run db:deploy`  | Apply migrations (production)               |
 | `npm run db:reset`   | Drop, re-migrate and re-seed                |
 | `npm run db:studio`  | Prisma Studio                               |
 
