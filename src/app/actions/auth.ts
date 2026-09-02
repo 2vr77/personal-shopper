@@ -51,3 +51,51 @@ export async function logout(): Promise<void> {
   await deleteSession()
   redirect('/login')
 }
+
+export async function createUser(
+  _prev: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState> {
+  const name = formData.get('name')
+  const email = formData.get('email')
+  const password = formData.get('password')
+  const role = formData.get('role')
+
+  if (
+    typeof name !== 'string' ||
+    typeof email !== 'string' ||
+    typeof password !== 'string' ||
+    typeof role !== 'string'
+  ) {
+    return { ok: false, message: 'All fields are required.' }
+  }
+
+  if (password.length < 8) {
+    return { ok: false, message: 'Password must be at least 8 characters.' }
+  }
+
+  if (!['ADMIN', 'STAFF', 'SHOPPER'].includes(role)) {
+    return { ok: false, message: 'Invalid role selected.' }
+  }
+
+  const existing = await db.user.findUnique({
+    where: { email: email.toLowerCase() },
+  })
+
+  if (existing) {
+    return { ok: false, message: 'Email already exists.' }
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+
+  await db.user.create({
+    data: {
+      name,
+      email: email.toLowerCase(),
+      passwordHash,
+      role: role as 'ADMIN' | 'STAFF' | 'SHOPPER',
+    },
+  })
+
+  return { ok: true, message: 'User created successfully.' }
+}
